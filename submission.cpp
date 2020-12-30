@@ -29,8 +29,9 @@ using namespace dlib;
 
 #define FACE_DOWNSAMPLE_RATIO 1
 
-//int selectedpoints[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 31, 32, 33, 34, 35, 55, 56, 57, 58, 58, 59};
-int selectedpoints[] = {36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47};
+int selectedpoints[] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,
+                        29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,
+                        54,55,56,57,58,59,60,61,62,63,64,65,66,67};
 
 std::vector<int> selectedIndex(selectedpoints, selectedpoints + sizeof(selectedpoints) / sizeof(int));
 
@@ -63,15 +64,19 @@ main()
     deserialize(modelPath) >> predictor;
 
     string overlayFile = "./images/eye_makeup1.png";
+    string overlayAlpha = "./images/eye_makeup1_alpha.png";
     string imageFile = "./images/ted_cruz.jpg";
 
     //Read eye image
     Mat eyes, targetImage, eyesAlphaMask;
     Mat imgWithMask = imread(overlayFile, IMREAD_UNCHANGED);
+    Mat imgAlpha = imread(overlayAlpha,IMREAD_UNCHANGED);
     std::vector<Mat> rgbaChannels(4);
+    std::vector<Mat> alphaChannels(4);
 
     //Split into channels
     split(imgWithMask, rgbaChannels);
+    split(imgAlpha, alphaChannels);
 
     //Extract eyes image
     std::vector<Mat> bgrchannels;
@@ -84,15 +89,19 @@ main()
 
     //Extract the beard mask
     std::vector<Mat> maskchannels;
-    maskchannels.push_back(rgbaChannels[3]);
-    maskchannels.push_back(rgbaChannels[3]);
-    maskchannels.push_back(rgbaChannels[3]);
+    maskchannels.push_back(alphaChannels[0]);
+    maskchannels.push_back(alphaChannels[0]);
+    maskchannels.push_back(alphaChannels[0]);
 
+    //alpha
+    //display images
     merge(maskchannels, eyesAlphaMask);
-    eyesAlphaMask.convertTo(eyesAlphaMask, CV_32FC3);
+    eyesAlphaMask.convertTo(eyesAlphaMask, CV_32FC3, 1.0/255.0);
+
+
 
     //Read points from eye file
-    std::vector<Point2f> featurePoints1 = getSavedPoints("./images/eye_makeup1.png.txt");
+    std::vector<Point2f> featurePoints1 = getSavedPoints("./images/eye_makeup1_0.txt");
 
     //Calculate Delaunay triangles
     Rect rect = boundingRect(featurePoints1);
@@ -130,27 +139,61 @@ main()
         //Get points for img1, targetImage corresponding to the triangles
         for(size_t j=0; j<3; j++)
         {
-            cout << "i is " << i << " j is " << j << endl;
             t1.push_back(featurePoints1[dt[i][j]]);
             t2.push_back(featurePoints2[dt[i][j]]);
         }
+
         warpTriangle(eyes, eyesWarped, t1, t2);
         warpTriangle(eyesAlphaMask, eyesAlphaMaskWarped, t1, t2);
     }
+    cout << "here" << endl;
 
 
     
     Mat mask1;
-    eyesAlphaMaskWarped.convertTo(mask1, CV_32FC3, 1.0/255.0);
+    //eyesAlphaMaskWarped.convertTo(mask1, CV_32FC3);
 
-    Mat mask2 = Scalar(1.0,1.0,1.0) - mask1;
-    Mat temp1 = targetImage.mul(mask2);
-    Mat temp2 = eyesWarped.mul(mask1);
 
-    Mat result = temp1 + temp2;
+    //targetImage.convertTo(targetImage, CV_8UC3);
+    eyesWarped = eyesWarped * 255;
+    eyesWarped.convertTo(eyesWarped, CV_8U);
+    cv::rectangle(eyesWarped, Point(0,0), Point(600,800), Scalar(255,0,0), 5);
+
+    eyesAlphaMaskWarped = eyesAlphaMaskWarped * 255;
+    eyesAlphaMaskWarped.convertTo(eyesAlphaMaskWarped, CV_8U);
+    cv::rectangle(eyesAlphaMaskWarped, Point(0,0), Point(600,800), Scalar(255,0,0), 5);
+
+
+    Mat targetImage2 = imread(imageFile);
+    int WIDTH = (float)eyesAlphaMask.cols/5.0;
+    int HEIGHT = (float)eyesAlphaMask.rows/5.0;
+    namedWindow("eyesAlphaMaskWarped", WINDOW_NORMAL);
+    resizeWindow("eyesAlphaMaskWarped", WIDTH, HEIGHT);
+    imshow("eyesAlphaMaskWarped", eyesAlphaMaskWarped);
+    namedWindow("eyesWarped", WINDOW_NORMAL);
+    resizeWindow("eyesWarped", WIDTH, HEIGHT);
+    imshow("eyesWarped", eyesWarped);
+    namedWindow("targetImage", WINDOW_NORMAL);
+    resizeWindow("targetImage", WIDTH, HEIGHT);
+    imshow("targetImage", targetImage2);
+
+    
+
+
+    //Mat mask2 = Scalar(1.0,1.0,1.0) - mask1;
+    //Mat temp1 = targetImage.mul(mask2);
+    //Mat temp2 = eyesWarped.mul(mask1);
+
+    //Mat result = temp1 + temp2;
+    //Mat result = targetImage.clone();
+    Mat result = targetImage2.clone();
+
+    Point center(targetImage.cols/2, targetImage.rows/2);
+    cout << center << endl;
+    cout << targetImage2.cols << "_" << targetImage2.rows << endl;
+    seamlessClone(eyesWarped, targetImage2, eyesAlphaMaskWarped, center, result, MIXED_CLONE);
 
     imshow("Display window", result);
-    imshow("eye mask", eyesAlphaMask);
     int k = waitKey(0);
 
     return 0;
