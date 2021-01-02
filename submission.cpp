@@ -61,7 +61,7 @@ main()
     shape_predictor predictor;
     deserialize(modelPath) >> predictor;
 
-    string target_img_file = "./images/ted_cruz.jpg";
+    string target_img_file = "./images/girl-no-makeup.jpg";
     string face_01_img_file = "./images/face_01_img.png";
     string eyes_01_msk_file = "./images/eyes_01_msk.png";
     string lips_01_msk_file = "./images/lips_01_msk.png";
@@ -88,7 +88,7 @@ main()
     std::vector<std::vector<int> >dt;
     calculateDelaunayTriangles(rect, featurePoints1, dt);
 
-    std::vector<Point2f> points2 = getSavedPoints("./images/ted_cruz.jpg.txt");
+    std::vector<Point2f> points2 = getSavedPoints("./images/girl-no-makeup_0.txt");
 
     std::vector<Point2f> featurePoints2;
     for(int i=0; i<selectedIndex.size(); i++)
@@ -120,32 +120,36 @@ main()
         warpTriangle(lips_01_msk, lips_01_msk_warped, t1, t2);
         warpTriangle(chks_01_msk, chks_01_msk_warped, t1, t2);
     }
+
+    int WIDTH = target_img.cols;
+    int HEIGHT = target_img.rows;
   
     //prepare warped images and masks for seamless cloning onto target image
     face_01_img_warped = face_01_img_warped * 255;
     face_01_img_warped.convertTo(face_01_img_warped, CV_8U);
-    cv::rectangle(face_01_img_warped, Point(0,0), Point(600,800), Scalar(255,0,0), 5);
+    cv::rectangle(face_01_img_warped, Point(0,0), Point(WIDTH,HEIGHT), Scalar(255,0,0), 5);
 
     eyes_01_msk_warped = eyes_01_msk_warped * 255;
     eyes_01_msk_warped.convertTo(eyes_01_msk_warped, CV_8U);
-    cv::rectangle(eyes_01_msk_warped, Point(0,0), Point(600,800), Scalar(255,0,0), 5);
+    cv::rectangle(eyes_01_msk_warped, Point(0,0), Point(WIDTH,HEIGHT), Scalar(255,0,0), 5);
 
     lips_01_msk_warped = lips_01_msk_warped * 255;
     lips_01_msk_warped.convertTo(lips_01_msk_warped, CV_8U);
-    cv::rectangle(lips_01_msk_warped, Point(0,0), Point(600,800), Scalar(255,0,0), 5);
+    cv::rectangle(lips_01_msk_warped, Point(0,0), Point(WIDTH,HEIGHT), Scalar(255,0,0), 5);
 
     chks_01_msk_warped = chks_01_msk_warped * 255;
     chks_01_msk_warped.convertTo(chks_01_msk_warped, CV_8U);
-    cv::rectangle(chks_01_msk_warped, Point(0,0), Point(600,800), Scalar(255,0,0), 5);
+    cv::rectangle(chks_01_msk_warped, Point(0,0), Point(WIDTH,HEIGHT), Scalar(255,0,0), 5);
 
     //combine masks
     eyes_01_msk_warped = eyes_01_msk_warped + lips_01_msk_warped + chks_01_msk_warped;
 
     //seamless clone warped face onto target face
     Point center(target_img.cols/2, target_img.rows/2);
-    seamlessClone(face_01_img_warped, target_img, eyes_01_msk_warped, center, result, MIXED_CLONE);
+    seamlessClone(face_01_img_warped, target_img, eyes_01_msk_warped, center, result, NORMAL_CLONE);
 
     //display images
+    imshow("face_01_img_warped", face_01_img_warped);
     imshow("Original Image", target_img);   
     imshow("Result Image", result);
     int k = waitKey(0);
