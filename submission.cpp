@@ -27,8 +27,6 @@ using namespace cv;
 using namespace std;
 using namespace dlib;
 
-#define FACE_DOWNSAMPLE_RATIO 1
-
 int selectedpoints[] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,
                         29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,
                         54,55,56,57,58,59,60,61,62,63,64,65,66,67};
@@ -63,137 +61,93 @@ main()
     shape_predictor predictor;
     deserialize(modelPath) >> predictor;
 
-    string overlayFile = "./images/eye_makeup1.png";
-    string overlayAlpha = "./images/eye_makeup1_alpha.png";
-    string imageFile = "./images/ted_cruz.jpg";
-
-    //Read eye image
-    Mat eyes, targetImage, eyesAlphaMask;
-    Mat imgWithMask = imread(overlayFile, IMREAD_UNCHANGED);
-    Mat imgAlpha = imread(overlayAlpha,IMREAD_UNCHANGED);
-    std::vector<Mat> rgbaChannels(4);
-    std::vector<Mat> alphaChannels(4);
-
-    //Split into channels
-    split(imgWithMask, rgbaChannels);
-    split(imgAlpha, alphaChannels);
-
-    //Extract eyes image
-    std::vector<Mat> bgrchannels;
-    bgrchannels.push_back(rgbaChannels[0]);
-    bgrchannels.push_back(rgbaChannels[1]);
-    bgrchannels.push_back(rgbaChannels[2]);
-
-    merge(bgrchannels, eyes);
-    eyes.convertTo(eyes, CV_32F, 1.0/255.0);
-
-    //Extract the beard mask
-    std::vector<Mat> maskchannels;
-    maskchannels.push_back(alphaChannels[0]);
-    maskchannels.push_back(alphaChannels[0]);
-    maskchannels.push_back(alphaChannels[0]);
-
-    //alpha
-    //display images
-    merge(maskchannels, eyesAlphaMask);
-    eyesAlphaMask.convertTo(eyesAlphaMask, CV_32FC3, 1.0/255.0);
+    string target_img_file = "./images/ted_cruz.jpg";
+    string face_01_img_file = "./images/face_01_img.png";
+    string eyes_01_msk_file = "./images/eyes_01_msk.png";
+    string lips_01_msk_file = "./images/lips_01_msk.png";
+    string chks_01_msk_file = "./images/chks_01_msk.png";
 
 
+    //Read  images
+    Mat target_img = imread(target_img_file, IMREAD_COLOR);
+    Mat face_01_img = imread(face_01_img_file, IMREAD_COLOR);
+    Mat eyes_01_msk = imread(eyes_01_msk_file,IMREAD_COLOR);
+    Mat lips_01_msk = imread(lips_01_msk_file, IMREAD_COLOR);
+    Mat chks_01_msk = imread(chks_01_msk_file, IMREAD_COLOR);
+
+    face_01_img.convertTo(face_01_img, CV_32F, 1.0/255.0);
+    eyes_01_msk.convertTo(eyes_01_msk, CV_32F, 1.0/255.0);
+    lips_01_msk.convertTo(lips_01_msk, CV_32F, 1.0/255.0);
+    chks_01_msk.convertTo(chks_01_msk, CV_32F, 1.0/255.0);
 
     //Read points from eye file
-    std::vector<Point2f> featurePoints1 = getSavedPoints("./images/eye_makeup1_0.txt");
+    std::vector<Point2f> featurePoints1 = getSavedPoints("./images/face_01_img_0.txt");
 
     //Calculate Delaunay triangles
     Rect rect = boundingRect(featurePoints1);
     std::vector<std::vector<int> >dt;
     calculateDelaunayTriangles(rect, featurePoints1, dt);
 
-    //Get the face image
-    targetImage = imread(imageFile);
-    //int height = targetImage.rows;
-    //float IMAGE_RESIZE = (float)height/RESIZE_HEIGHT;
-    //cv::resize(targetImage, targetImage, cv::Size(), 1.0/IMAGE_RESIZE, 1.0/IMAGE_RESIZE);
-
     std::vector<Point2f> points2 = getSavedPoints("./images/ted_cruz.jpg.txt");
-    //std::vector<Point2f> points2 = getLandmarks(detector, predictor, targetImage, (float) FACE_DOWNSAMPLE_RATIO);
-    cout << "at line 108" << endl;
+
     std::vector<Point2f> featurePoints2;
     for(int i=0; i<selectedIndex.size(); i++)
     {
         featurePoints2.push_back(points2[selectedIndex[i]]);
-        constrainPoint(featurePoints2[i], targetImage.size());
+        constrainPoint(featurePoints2[i], target_img.size());
     }
-    cout << "at line 115" << endl;
-    //convert Mat to float data type
-    targetImage.convertTo(targetImage, CV_32F, 1.0/255.0);
 
-    //empty warp image
-    Mat eyesWarped = Mat::zeros(targetImage.size(), eyes.type());
-    Mat eyesAlphaMaskWarped = Mat::zeros(targetImage.size(), eyesAlphaMask.type());
+    //result images
+    Mat face_01_img_warped = Mat::zeros(target_img.size(), face_01_img.type());
+    Mat eyes_01_msk_warped = Mat::zeros(target_img.size(), eyes_01_msk.type());
+    Mat lips_01_msk_warped = Mat::zeros(target_img.size(), lips_01_msk.type());
+    Mat chks_01_msk_warped = Mat::zeros(target_img.size(), chks_01_msk.type());
+    Mat result;
 
-    cout << "at line 123" << endl;
     //Apply affine transformation to Delaunay triangles
     for(size_t i=0; i<dt.size(); i++)
     {
         std::vector<Point2f> t1, t2;
-        //Get points for img1, targetImage corresponding to the triangles
+
         for(size_t j=0; j<3; j++)
         {
             t1.push_back(featurePoints1[dt[i][j]]);
             t2.push_back(featurePoints2[dt[i][j]]);
         }
 
-        warpTriangle(eyes, eyesWarped, t1, t2);
-        warpTriangle(eyesAlphaMask, eyesAlphaMaskWarped, t1, t2);
+        warpTriangle(face_01_img, face_01_img_warped, t1, t2);
+        warpTriangle(eyes_01_msk, eyes_01_msk_warped, t1, t2);
+        warpTriangle(lips_01_msk, lips_01_msk_warped, t1, t2);
+        warpTriangle(chks_01_msk, chks_01_msk_warped, t1, t2);
     }
-    cout << "here" << endl;
+  
+    //prepare warped images and masks for seamless cloning onto target image
+    face_01_img_warped = face_01_img_warped * 255;
+    face_01_img_warped.convertTo(face_01_img_warped, CV_8U);
+    cv::rectangle(face_01_img_warped, Point(0,0), Point(600,800), Scalar(255,0,0), 5);
 
+    eyes_01_msk_warped = eyes_01_msk_warped * 255;
+    eyes_01_msk_warped.convertTo(eyes_01_msk_warped, CV_8U);
+    cv::rectangle(eyes_01_msk_warped, Point(0,0), Point(600,800), Scalar(255,0,0), 5);
 
-    
-    Mat mask1;
-    //eyesAlphaMaskWarped.convertTo(mask1, CV_32FC3);
+    lips_01_msk_warped = lips_01_msk_warped * 255;
+    lips_01_msk_warped.convertTo(lips_01_msk_warped, CV_8U);
+    cv::rectangle(lips_01_msk_warped, Point(0,0), Point(600,800), Scalar(255,0,0), 5);
 
+    chks_01_msk_warped = chks_01_msk_warped * 255;
+    chks_01_msk_warped.convertTo(chks_01_msk_warped, CV_8U);
+    cv::rectangle(chks_01_msk_warped, Point(0,0), Point(600,800), Scalar(255,0,0), 5);
 
-    //targetImage.convertTo(targetImage, CV_8UC3);
-    eyesWarped = eyesWarped * 255;
-    eyesWarped.convertTo(eyesWarped, CV_8U);
-    cv::rectangle(eyesWarped, Point(0,0), Point(600,800), Scalar(255,0,0), 5);
+    //combine masks
+    eyes_01_msk_warped = eyes_01_msk_warped + lips_01_msk_warped + chks_01_msk_warped;
 
-    eyesAlphaMaskWarped = eyesAlphaMaskWarped * 255;
-    eyesAlphaMaskWarped.convertTo(eyesAlphaMaskWarped, CV_8U);
-    cv::rectangle(eyesAlphaMaskWarped, Point(0,0), Point(600,800), Scalar(255,0,0), 5);
+    //seamless clone warped face onto target face
+    Point center(target_img.cols/2, target_img.rows/2);
+    seamlessClone(face_01_img_warped, target_img, eyes_01_msk_warped, center, result, MIXED_CLONE);
 
-
-    Mat targetImage2 = imread(imageFile);
-    int WIDTH = (float)eyesAlphaMask.cols/5.0;
-    int HEIGHT = (float)eyesAlphaMask.rows/5.0;
-    namedWindow("eyesAlphaMaskWarped", WINDOW_NORMAL);
-    resizeWindow("eyesAlphaMaskWarped", WIDTH, HEIGHT);
-    imshow("eyesAlphaMaskWarped", eyesAlphaMaskWarped);
-    namedWindow("eyesWarped", WINDOW_NORMAL);
-    resizeWindow("eyesWarped", WIDTH, HEIGHT);
-    imshow("eyesWarped", eyesWarped);
-    namedWindow("targetImage", WINDOW_NORMAL);
-    resizeWindow("targetImage", WIDTH, HEIGHT);
-    imshow("targetImage", targetImage2);
-
-    
-
-
-    //Mat mask2 = Scalar(1.0,1.0,1.0) - mask1;
-    //Mat temp1 = targetImage.mul(mask2);
-    //Mat temp2 = eyesWarped.mul(mask1);
-
-    //Mat result = temp1 + temp2;
-    //Mat result = targetImage.clone();
-    Mat result = targetImage2.clone();
-
-    Point center(targetImage.cols/2, targetImage.rows/2);
-    cout << center << endl;
-    cout << targetImage2.cols << "_" << targetImage2.rows << endl;
-    seamlessClone(eyesWarped, targetImage2, eyesAlphaMaskWarped, center, result, MIXED_CLONE);
-
-    imshow("Display window", result);
+    //display images
+    imshow("Original Image", target_img);   
+    imshow("Result Image", result);
     int k = waitKey(0);
 
     return 0;
