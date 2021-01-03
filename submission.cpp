@@ -27,6 +27,9 @@ using namespace cv;
 using namespace std;
 using namespace dlib;
 
+#define WRITE_BASE_LANDMARKS 1
+#define WRITE_OVERLAY_LANDMARKS 1
+
 int selectedpoints[] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,
                         29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,
                         54,55,56,57,58,59,60,61,62,63,64,65,66,67};
@@ -53,32 +56,73 @@ std::vector<Point2f> getSavedPoints(string pointsFileName)
     return points;
 }
 
+void 
+writeLandmarksToFile(full_object_detection &landmarks, const string &filename)
+{
+    //open file
+    std::ofstream ofs;
+    ofs.open(filename);
+
+    //loop over all landmark points
+    for(int i=0; i<landmarks.num_parts(); i++)
+    {
+        //print x and y coordinates to file
+        ofs << landmarks.part(i).x() << " " << landmarks.part(i).y() << endl;
+    }
+
+    //close file
+    ofs.close();
+}
+
+void 
+landmarkDetect(const cv::Mat& img, string landmarksBasename)
+{
+    string modelPath = "./models/shape_predictor_68_face_landmarks.dat";
+    frontal_face_detector faceDetector = get_frontal_face_detector();
+    shape_predictor landmarkDetector;
+    deserialize(modelPath) >> landmarkDetector;
+
+    //convert openCV image to Dlib image
+    cv_image<bgr_pixel> dlibIm(img);
+
+    //detect face in img
+    std::vector<dlib::rectangle> faceRect = faceDetector(dlibIm);
+
+    //detect landmarks on face if found
+    full_object_detection landmarks = landmarkDetector(dlibIm, faceRect[0]);
+
+    //write landmarks to disk
+    std::stringstream landmarksFilename;
+    landmarksFilename << landmarksBasename << ".txt";
+    cout << "Saving  landmarks to " << landmarksFilename.str() << endl;
+    writeLandmarksToFile(landmarks, landmarksFilename.str());
+}
+
 int
 main()
 {
-    string modelPath = "./models/shape_predictor_68_face_landmarks.dat";
-    frontal_face_detector detector = get_frontal_face_detector();
-    shape_predictor predictor;
-    deserialize(modelPath) >> predictor;
-
-    string target_img_file = "./images/girl-no-makeup.jpg";
-    string face_01_img_file = "./images/face_01_img.png";
-    string eyes_01_msk_file = "./images/eyes_01_msk.png";
-    string lips_01_msk_file = "./images/lips_01_msk.png";
-    string chks_01_msk_file = "./images/chks_01_msk.png";
+    string base_img_file = "./images/girl-no-makeup.jpg";
+    string overlay_img_file = "./images/face_01_img.png";
+    string eyes_msk_file = "./images/eyes_01_msk.png";
+    string lips_msk_file = "./images/lips_01_msk.png";
+    string chks_msk_file = "./images/chks_01_msk.png";
 
 
     //Read  images
-    Mat target_img = imread(target_img_file, IMREAD_COLOR);
-    Mat face_01_img = imread(face_01_img_file, IMREAD_COLOR);
-    Mat eyes_01_msk = imread(eyes_01_msk_file,IMREAD_COLOR);
-    Mat lips_01_msk = imread(lips_01_msk_file, IMREAD_COLOR);
-    Mat chks_01_msk = imread(chks_01_msk_file, IMREAD_COLOR);
+    Mat base_img = imread(base_img_file, IMREAD_COLOR);
+    Mat overlay_img = imread(overlay_img_file, IMREAD_COLOR);
+    Mat eyes_msk = imread(eyes_msk_file,IMREAD_COLOR);
+    Mat lips_msk = imread(lips_msk_file, IMREAD_COLOR);
+    Mat chks_msk = imread(chks_msk_file, IMREAD_COLOR);
 
-    face_01_img.convertTo(face_01_img, CV_32F, 1.0/255.0);
-    eyes_01_msk.convertTo(eyes_01_msk, CV_32F, 1.0/255.0);
-    lips_01_msk.convertTo(lips_01_msk, CV_32F, 1.0/255.0);
-    chks_01_msk.convertTo(chks_01_msk, CV_32F, 1.0/255.0);
+    //write landmark points to file
+    if(WRITE_BASE_LANDMARKS) { landmarkDetect(base_img, base_img_file); }
+    if(WRITE_OVERLAY_LANDMARKS) { landmarkDetect(overlay_img, overlay_img_file); }
+
+    overlay_img.convertTo(overlay_img, CV_32F, 1.0/255.0);
+    eyes_msk.convertTo(eyes_msk, CV_32F, 1.0/255.0);
+    lips_msk.convertTo(lips_msk, CV_32F, 1.0/255.0);
+    chks_msk.convertTo(chks_msk, CV_32F, 1.0/255.0);
 
     //Read points from eye file
     std::vector<Point2f> featurePoints1 = getSavedPoints("./images/face_01_img_0.txt");
@@ -94,14 +138,14 @@ main()
     for(int i=0; i<selectedIndex.size(); i++)
     {
         featurePoints2.push_back(points2[selectedIndex[i]]);
-        constrainPoint(featurePoints2[i], target_img.size());
+        constrainPoint(featurePoints2[i], base_img.size());
     }
 
     //result images
-    Mat face_01_img_warped = Mat::zeros(target_img.size(), face_01_img.type());
-    Mat eyes_01_msk_warped = Mat::zeros(target_img.size(), eyes_01_msk.type());
-    Mat lips_01_msk_warped = Mat::zeros(target_img.size(), lips_01_msk.type());
-    Mat chks_01_msk_warped = Mat::zeros(target_img.size(), chks_01_msk.type());
+    Mat overlay_img_warped = Mat::zeros(base_img.size(), overlay_img.type());
+    Mat eyes_msk_warped = Mat::zeros(base_img.size(), eyes_msk.type());
+    Mat lips_msk_warped = Mat::zeros(base_img.size(), lips_msk.type());
+    Mat chks_msk_warped = Mat::zeros(base_img.size(), chks_msk.type());
     Mat result;
 
     //Apply affine transformation to Delaunay triangles
@@ -115,42 +159,42 @@ main()
             t2.push_back(featurePoints2[dt[i][j]]);
         }
 
-        warpTriangle(face_01_img, face_01_img_warped, t1, t2);
-        warpTriangle(eyes_01_msk, eyes_01_msk_warped, t1, t2);
-        warpTriangle(lips_01_msk, lips_01_msk_warped, t1, t2);
-        warpTriangle(chks_01_msk, chks_01_msk_warped, t1, t2);
+        warpTriangle(overlay_img, overlay_img_warped, t1, t2);
+        warpTriangle(eyes_msk, eyes_msk_warped, t1, t2);
+        warpTriangle(lips_msk, lips_msk_warped, t1, t2);
+        warpTriangle(chks_msk, chks_msk_warped, t1, t2);
     }
 
-    int WIDTH = target_img.cols;
-    int HEIGHT = target_img.rows;
+    int WIDTH = base_img.cols;
+    int HEIGHT = base_img.rows;
   
     //prepare warped images and masks for seamless cloning onto target image
-    face_01_img_warped = face_01_img_warped * 255;
-    face_01_img_warped.convertTo(face_01_img_warped, CV_8U);
-    cv::rectangle(face_01_img_warped, Point(0,0), Point(WIDTH,HEIGHT), Scalar(255,0,0), 5);
+    overlay_img_warped = overlay_img_warped * 255;
+    overlay_img_warped.convertTo(overlay_img_warped, CV_8U);
+    cv::rectangle(overlay_img_warped, Point(0,0), Point(WIDTH,HEIGHT), Scalar(255,0,0), 5);
 
-    eyes_01_msk_warped = eyes_01_msk_warped * 255;
-    eyes_01_msk_warped.convertTo(eyes_01_msk_warped, CV_8U);
-    cv::rectangle(eyes_01_msk_warped, Point(0,0), Point(WIDTH,HEIGHT), Scalar(255,0,0), 5);
+    eyes_msk_warped = eyes_msk_warped * 255;
+    eyes_msk_warped.convertTo(eyes_msk_warped, CV_8U);
+    cv::rectangle(eyes_msk_warped, Point(0,0), Point(WIDTH,HEIGHT), Scalar(255,0,0), 5);
 
-    lips_01_msk_warped = lips_01_msk_warped * 255;
-    lips_01_msk_warped.convertTo(lips_01_msk_warped, CV_8U);
-    cv::rectangle(lips_01_msk_warped, Point(0,0), Point(WIDTH,HEIGHT), Scalar(255,0,0), 5);
+    lips_msk_warped = lips_msk_warped * 255;
+    lips_msk_warped.convertTo(lips_msk_warped, CV_8U);
+    cv::rectangle(lips_msk_warped, Point(0,0), Point(WIDTH,HEIGHT), Scalar(255,0,0), 5);
 
-    chks_01_msk_warped = chks_01_msk_warped * 255;
-    chks_01_msk_warped.convertTo(chks_01_msk_warped, CV_8U);
-    cv::rectangle(chks_01_msk_warped, Point(0,0), Point(WIDTH,HEIGHT), Scalar(255,0,0), 5);
+    chks_msk_warped = chks_msk_warped * 255;
+    chks_msk_warped.convertTo(chks_msk_warped, CV_8U);
+    cv::rectangle(chks_msk_warped, Point(0,0), Point(WIDTH,HEIGHT), Scalar(255,0,0), 5);
 
     //combine masks
-    eyes_01_msk_warped = eyes_01_msk_warped + lips_01_msk_warped + chks_01_msk_warped;
+    eyes_msk_warped = eyes_msk_warped + lips_msk_warped + chks_msk_warped;
 
     //seamless clone warped face onto target face
-    Point center(target_img.cols/2, target_img.rows/2);
-    seamlessClone(face_01_img_warped, target_img, eyes_01_msk_warped, center, result, NORMAL_CLONE);
+    Point center(base_img.cols/2, base_img.rows/2);
+    seamlessClone(overlay_img_warped, base_img, eyes_msk_warped, center, result, MIXED_CLONE);
 
     //display images
-    imshow("face_01_img_warped", face_01_img_warped);
-    imshow("Original Image", target_img);   
+    imshow("overlay_img_warped", overlay_img_warped);
+    imshow("Original Image", base_img);   
     imshow("Result Image", result);
     int k = waitKey(0);
 
