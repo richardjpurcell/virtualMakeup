@@ -27,7 +27,7 @@ using namespace cv;
 using namespace std;
 using namespace dlib;
 
-#define WRITE_BASE_LANDMARKS 1
+#define WRITE_BASE_LANDMARKS 0
 #define WRITE_OVERLAY_LANDMARKS 1
 #define MAKEUP_STYLE FASHION_FACE
 string base_img_file = "./images/girl-no-makeup.jpg";
@@ -67,7 +67,7 @@ writeLandmarksToFile(full_object_detection &landmarks, const string &filename)
     std::ofstream ofs;
     ofs.open(filename);
 
-    //loop over all landmark points
+    //loop over all landmark poinCLOWNts
     for(int i=0; i<landmarks.num_parts(); i++)
     {
         //print x and y coordinates to file
@@ -113,14 +113,13 @@ main()
 
     //Read  images
     Mat base_img = imread(base_img_file, IMREAD_COLOR);
-    Mat overlay_img = imread("./images/face_1_img.png", IMREAD_COLOR);
+    Mat overlay_img = imread(overlay_img_file.str(), IMREAD_COLOR);
     Mat eyes_msk = imread(eyes_msk_file.str(),IMREAD_COLOR);
     Mat lips_msk = imread(lips_msk_file.str(), IMREAD_COLOR);
     Mat chks_msk = imread(chks_msk_file.str(), IMREAD_COLOR);
 
     //write landmark points to file
     if(WRITE_BASE_LANDMARKS) { landmarkDetect(base_img, base_img_file); }
-    cout << overlay_img_file.str() << endl;
     if(WRITE_OVERLAY_LANDMARKS) { landmarkDetect(overlay_img, overlay_img_file.str()); }
 
     overlay_img.convertTo(overlay_img, CV_32F, 1.0/255.0);
@@ -198,9 +197,10 @@ main()
 
     //seamless clone warped face onto target face
     Point center(base_img.cols/2, base_img.rows/2);
-    seamlessClone(overlay_img_warped, base_img, eyes_msk_warped, center, result, MIXED_CLONE);
+    seamlessClone(overlay_img_warped, base_img, eyes_msk_warped, center, result, NORMAL_CLONE);
 
     //display images
+    imshow("mask", eyes_msk_warped);
     imshow("Original Image", base_img);   
     imshow("Result Image", result);
     int k = waitKey(0);
