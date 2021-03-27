@@ -1,12 +1,14 @@
 /*
  * File:      submission.cpp
  * Author:    Richard Purcell
- * Date:      2020-22-12
+ * Date:      2021-03-27
  * Version:   1.0
  * Purpose:   Given an image add virtual makeup and display the altered image.
  * Usage:     $ ./submission
  * Notes:     Created for OpenCV's Computer Vision 2 Project 1.
  *            Provided filenames are hard coded for this project.
+ *            User has the option of writing landmarks or using existing one for speed.
+ *            User has option of fashion, clown, or goth makeup.
  */
 
 #include <opencv2/opencv.hpp>
@@ -27,7 +29,7 @@ using namespace cv;
 using namespace std;
 using namespace dlib;
 
-#define WRITE_BASE_LANDMARKS 0
+#define WRITE_BASE_LANDMARKS 1
 #define WRITE_OVERLAY_LANDMARKS 1
 #define MAKEUP_STYLE FASHION_FACE
 string base_img_file = "./images/girl-no-makeup.jpg";
@@ -103,10 +105,12 @@ int
 main()
 {
     std::stringstream overlay_img_file;
+
     std::stringstream eyes_msk_file;
     std::stringstream lips_msk_file;
     std::stringstream chks_msk_file;
     overlay_img_file << "./images/face_" << MAKEUP_STYLE << "_img.png";
+
     eyes_msk_file << "./images/eyes_" << MAKEUP_STYLE << "_msk.png";
     lips_msk_file << "./images/lips_" << MAKEUP_STYLE << "_msk.png";
     chks_msk_file << "./images/chks_" << MAKEUP_STYLE << "_msk.png";
@@ -114,6 +118,7 @@ main()
     //Read  images
     Mat base_img = imread(base_img_file, IMREAD_COLOR);
     Mat overlay_img = imread(overlay_img_file.str(), IMREAD_COLOR);
+
     Mat eyes_msk = imread(eyes_msk_file.str(),IMREAD_COLOR);
     Mat lips_msk = imread(lips_msk_file.str(), IMREAD_COLOR);
     Mat chks_msk = imread(chks_msk_file.str(), IMREAD_COLOR);
@@ -123,18 +128,23 @@ main()
     if(WRITE_OVERLAY_LANDMARKS) { landmarkDetect(overlay_img, overlay_img_file.str()); }
 
     overlay_img.convertTo(overlay_img, CV_32F, 1.0/255.0);
+
     eyes_msk.convertTo(eyes_msk, CV_32F, 1.0/255.0);
     lips_msk.convertTo(lips_msk, CV_32F, 1.0/255.0);
     chks_msk.convertTo(chks_msk, CV_32F, 1.0/255.0);
 
         //result images
     Mat overlay_img_warped = Mat::zeros(base_img.size(), overlay_img.type());
-    Mat eyes_msk_warped = Mat::zeros(base_img.size(), eyes_msk.type());
-    Mat lips_msk_warped = Mat::zeros(base_img.size(), lips_msk.type());
-    Mat chks_msk_warped = Mat::zeros(base_img.size(), chks_msk.type());
-    Mat result;
+    Mat eyes_msk_warped = Mat::zeros(base_img.size(), overlay_img.type());
+    Mat lips_msk_warped = Mat::zeros(base_img.size(), overlay_img.type());
+    Mat chks_msk_warped = Mat::zeros(base_img.size(), overlay_img.type());
+    Mat result = Mat::zeros(base_img.size(), overlay_img.type());
+    Mat msk = Mat::zeros(base_img.size(), overlay_img.type());
+    Mat white = Mat::ones(base_img.size(), overlay_img.type());
+    Mat tempResult1 = base_img.clone();
+    tempResult1.convertTo(tempResult1, CV_32F, 1.0/255.0);
 
-
+    
 
     //Read landmark points
     std::stringstream featurePoints1_file;
@@ -174,34 +184,32 @@ main()
 
     int WIDTH = base_img.cols;
     int HEIGHT = base_img.rows;
+
+
   
     //prepare warped images and masks for seamless cloning onto target image
     overlay_img_warped = overlay_img_warped * 255;
     overlay_img_warped.convertTo(overlay_img_warped, CV_8U);
     cv::rectangle(overlay_img_warped, Point(0,0), Point(WIDTH,HEIGHT), Scalar(255,0,0), 5);
 
-    eyes_msk_warped = eyes_msk_warped * 255;
-    eyes_msk_warped.convertTo(eyes_msk_warped, CV_8U);
-    cv::rectangle(eyes_msk_warped, Point(0,0), Point(WIDTH,HEIGHT), Scalar(255,0,0), 5);
+    msk = (eyes_msk_warped + lips_msk_warped + chks_msk_warped);
+    msk = msk * 255;
+    msk.convertTo(msk, CV_8U);
+    //inRange(msk, Scalar(1,1,1), Scalar(255,255,255), msk);
+    threshold(msk, msk, 200, 255, 3);
+    erode(msk, msk, Mat(), Point(-1,-1), 5);
+    GaussianBlur(msk,msk, Size(05,05),0);
 
-    lips_msk_warped = lips_msk_warped * 255;
-    lips_msk_warped.convertTo(lips_msk_warped, CV_8U);
-    cv::rectangle(lips_msk_warped, Point(0,0), Point(WIDTH,HEIGHT), Scalar(255,0,0), 5);
-
-    chks_msk_warped = chks_msk_warped * 255;
-    chks_msk_warped.convertTo(chks_msk_warped, CV_8U);
-    cv::rectangle(chks_msk_warped, Point(0,0), Point(WIDTH,HEIGHT), Scalar(255,0,0), 5);
-
-    //combine masks
-    eyes_msk_warped = eyes_msk_warped + lips_msk_warped + chks_msk_warped;
+    cv::rectangle(msk, Point(0,0), Point(WIDTH,HEIGHT), Scalar(255,0,0), 5);
 
     //seamless clone warped face onto target face
     Point center(base_img.cols/2, base_img.rows/2);
-    seamlessClone(overlay_img_warped, base_img, eyes_msk_warped, center, result, NORMAL_CLONE);
+    seamlessClone(overlay_img_warped, base_img, msk, center, result, MIXED_CLONE);
 
     //display images
-    imshow("mask", eyes_msk_warped);
-    imshow("Original Image", base_img);   
+    imshow("mask", msk);
+    imshow("Original Image", base_img); 
+    imshow("overlay_img_warped", overlay_img_warped);  
     imshow("Result Image", result);
     int k = waitKey(0);
 
