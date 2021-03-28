@@ -29,9 +29,12 @@ using namespace cv;
 using namespace std;
 using namespace dlib;
 
+//change below to 0 to not write landmark file
 #define WRITE_BASE_LANDMARKS 1
 #define WRITE_OVERLAY_LANDMARKS 1
+//change below to select different style
 #define MAKEUP_STYLE FASHION_FACE
+//change below to use a different image to add makeup to
 string base_img_file = "./images/girl-no-makeup.jpg";
 
 enum {DEFAULT_FACE, FASHION_FACE, CLOWN_FACE, GOTH_FACE};
@@ -62,6 +65,17 @@ std::vector<Point2f> getSavedPoints(string pointsFileName)
     return points;
 }
 
+/*
+ * Name:         writeLandmarksToFile
+ * Purpose:      write facial landmark points to a txt file
+ * Arguments:    full_object_detection &landmarks, const string &filename
+ * Outputs:      txt file
+ * Modifies:     none
+ * Returns:      none
+ * Assumptions:  none
+ * Bugs:         ?
+ * Notes:        based on samples from Computer Vision II week 3
+ */
 void 
 writeLandmarksToFile(full_object_detection &landmarks, const string &filename)
 {
@@ -80,6 +94,17 @@ writeLandmarksToFile(full_object_detection &landmarks, const string &filename)
     ofs.close();
 }
 
+/*
+ * Name:         landmarkDetect
+ * Purpose:      detect faces and facial landmarks using dlib
+ * Arguments:    const cv::Mat& img, string landmarksBasename
+ * Outputs:      none
+ * Modifies:     none
+ * Returns:      none
+ * Assumptions:  none
+ * Bugs:         ?
+ * Notes:        based on samples from Computer Vision II week 3
+ */
 void 
 landmarkDetect(const cv::Mat& img, string landmarksBasename)
 {
@@ -100,12 +125,10 @@ landmarkDetect(const cv::Mat& img, string landmarksBasename)
     writeLandmarksToFile(landmarks, landmarksFilename.str());
 }
 
-
 int
 main()
 {
     std::stringstream overlay_img_file;
-
     std::stringstream eyes_msk_file;
     std::stringstream lips_msk_file;
     std::stringstream chks_msk_file;
@@ -143,8 +166,6 @@ main()
     Mat white = Mat::ones(base_img.size(), overlay_img.type());
     Mat tempResult1 = base_img.clone();
     tempResult1.convertTo(tempResult1, CV_32F, 1.0/255.0);
-
-    
 
     //Read landmark points
     std::stringstream featurePoints1_file;
@@ -185,8 +206,6 @@ main()
     int WIDTH = base_img.cols;
     int HEIGHT = base_img.rows;
 
-
-  
     //prepare warped images and masks for seamless cloning onto target image
     overlay_img_warped = overlay_img_warped * 255;
     overlay_img_warped.convertTo(overlay_img_warped, CV_8U);
@@ -195,7 +214,7 @@ main()
     msk = (eyes_msk_warped + lips_msk_warped + chks_msk_warped);
     msk = msk * 255;
     msk.convertTo(msk, CV_8U);
-    //inRange(msk, Scalar(1,1,1), Scalar(255,255,255), msk);
+
     threshold(msk, msk, 200, 255, 3);
     erode(msk, msk, Mat(), Point(-1,-1), 5);
     GaussianBlur(msk,msk, Size(05,05),0);
@@ -206,10 +225,10 @@ main()
     Point center(base_img.cols/2, base_img.rows/2);
     seamlessClone(overlay_img_warped, base_img, msk, center, result, MIXED_CLONE);
 
-    //display images
-    imshow("mask", msk);
-    imshow("Original Image", base_img); 
-    imshow("overlay_img_warped", overlay_img_warped);  
+    //display images, uncomment below 3 lines for error checking
+    //imshow("mask", msk);
+    //imshow("Original Image", base_img); 
+    //imshow("overlay_img_warped", overlay_img_warped);  
     imshow("Result Image", result);
     int k = waitKey(0);
 
